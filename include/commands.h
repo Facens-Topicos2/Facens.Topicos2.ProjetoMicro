@@ -12,8 +12,8 @@ extern gpio_analog_sampler<double> battery_level_sensor;
 extern gpio_analog_sampler<double> temperature_sensor;
 
 static const std::map<std::string, std::function<void(String)>> COMMANDS = {
-  {":set_volt", [](String command) {
-    int value = command.substring(9).toInt();
+  {":set_battery", [](String command) {
+    int value = command.substring(12).toInt();
     battery_level_sensor.set_debug_value(value);
     String output = "Nivel de bateria definido";
     Serial.println(output);
@@ -41,7 +41,7 @@ static const std::map<std::string, std::function<void(String)>> COMMANDS = {
     bool debug_mode = battery_level_sensor.get_debug_mode();
     String output =
       "Debug: " + String(debug_mode ? "Ativo" : "Inativo") + "\n" +
-      "Nivel de bateria: " + String(battery_level) + " V | " + String(battery_level_raw) + " (digital)\n" +
+      "Nivel de bateria: " + String(battery_level) + " % | " + String(battery_level_raw) + " (digital)\n" +
       "Temperatura: " + String(temperature) + " C | " + String(temperature_raw) + " (digital)";
     Serial.print(output);
   }},
@@ -49,7 +49,7 @@ static const std::map<std::string, std::function<void(String)>> COMMANDS = {
       String output =
         "Comandos disponiveis:\n\
         \t:set_debug <valor> - Ativa o modo debug\n\
-        \t:set_volt <valor> - Define o nivel de bateria (modo debug)\n\
+        \t:set_battery <valor> - Define o nivel de bateria (modo debug)\n\
         \t:set_temp <valor> - Define a temperatura (modo debug)\n\
         \t:read - Leitura dos sensores\n\
         \t:help - Mostra esta ajuda";

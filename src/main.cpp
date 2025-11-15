@@ -8,14 +8,6 @@ void loop() { /* Não usado, toda a lógica está nas tasks */ }
 #include "gpio_devices.h"
 #include "commands.h"
 
-#define VOLTAGE_BASELINE 3.3   
-#define TEMPERATURE_THRESHOLD 40.0
-
-bool is_debug = false;
-gpio_output led(2);
-gpio_digital_sampler<int> button(0);
-gpio_analog_sampler<double> battery_level_sensor(34);
-gpio_analog_sampler<double> temperature_sensor(35);
 
 #define DEBUG_TASK_PRIORITY         1
 #define MONITOR_TEMP_TASK_PRIORITY  2
@@ -26,6 +18,31 @@ gpio_analog_sampler<double> temperature_sensor(35);
 #define MONITOR_TEMP_TASK_FREQUENCY_MS 50
 #define MONITOR_BATT_TASK_FREQUENCY_MS 50
 
+#define VOLTAGE_REFERENCE 3.3
+#define ADC_MAX_VALUE 4095
+
+#define TEMPERATURE_BASELINE 20.0
+#define TEMPERATURE_MAX 100.0
+#define TEMPERATURE_ALARM_THRESHOLD_UPPER 80.0
+#define TEMPERATURE_RESOLUTION ((TEMPERATURE_MAX - TEMPERATURE_BASELINE) / ADC_MAX_VALUE)
+
+#define BATTERY_BASELINE 0.0
+#define BATTERY_MAX 100.0
+#define BATTERY_VOLTAGE_ALARM_THRESHOLD_LOWER 20.0
+#define BATTERY_RESOLUTION ((BATTERY_MAX - BATTERY_BASELINE) / ADC_MAX_VALUE)
+
+bool is_debug = false;
+
+gpio_output led(2);
+
+gpio_analog_sampler<double> battery_level_sensor(34, [] (int input) -> double {
+    return input * BATTERY_RESOLUTION + BATTERY_BASELINE;
+});
+
+gpio_analog_sampler<double> temperature_sensor(35, [] (int input) -> double {
+    return input * TEMPERATURE_RESOLUTION + TEMPERATURE_BASELINE;
+});
+
 TaskHandle_t alarmTaskHandle = NULL;
 
 volatile bool alarm_active = false;
@@ -33,7 +50,7 @@ volatile bool alarm_active = false;
 bool check_alarm_condition() {
   double batt = battery_level_sensor.read();
   double temp = temperature_sensor.read();
-  return (batt <= VOLTAGE_BASELINE) || (temp >= TEMPERATURE_THRESHOLD);
+  return (batt <= BATTERY_VOLTAGE_ALARM_THRESHOLD_LOWER) || (temp >= TEMPERATURE_ALARM_THRESHOLD_UPPER);
 }
 
 void alarm_task(void* param) {
@@ -61,7 +78,7 @@ void monitor_temp_task(void* param) {
   const TickType_t xFrequency = MONITOR_TEMP_TASK_FREQUENCY_MS / portTICK_PERIOD_MS;
   for (;;) {
     double temp = temperature_sensor.read();
-    if (temp >= TEMPERATURE_THRESHOLD && alarmTaskHandle != NULL && !alarm_active) {
+    if (temp >= TEMPERATURE_ALARM_THRESHOLD_UPPER && alarmTaskHandle != NULL && !alarm_active) {
       xTaskNotifyGive(alarmTaskHandle);
       Serial.println("Task_Temperatura liberou Task_Alarme.");
     }
@@ -74,7 +91,7 @@ void monitor_batt_task(void* param) {
   const TickType_t xFrequency = MONITOR_BATT_TASK_FREQUENCY_MS / portTICK_PERIOD_MS;
   for (;;) {
     double batt = battery_level_sensor.read();
-    if (batt <= VOLTAGE_BASELINE && alarmTaskHandle != NULL && !alarm_active) {
+    if (batt <= BATTERY_VOLTAGE_ALARM_THRESHOLD_LOWER && alarmTaskHandle != NULL && !alarm_active) {
       xTaskNotifyGive(alarmTaskHandle);
       Serial.println("Task_Bateria liberou Task_Alarme.");
     }
