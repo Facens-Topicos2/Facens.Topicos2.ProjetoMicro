@@ -36,6 +36,8 @@ bool debug_battery = false;
 bool debug_temperature = false;
 bool debug_logs = false;
 
+int alarm_task_called_ticks = 0;
+
 // Task execution time queues (stores last 10 execution times)
 std::vector<unsigned long> monitor_temp_times;
 std::vector<unsigned long> monitor_batt_times;
@@ -67,7 +69,8 @@ void alarm_task(void* param) {
   Serial.println("\nTask_Alarme pronta.");
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    Serial.println("\nAlarme disparado...");
+    int alarm_task_start_delay = (xTaskGetTickCount() - alarm_task_called_ticks) * portTICK_PERIOD_MS; 
+    Serial.println("\nAlarme disparado... (atraso na chamada da task: " + String(alarm_task_start_delay) + " ms)");
     alarm_active = true;
     while (alarm_active) {
       unsigned long start = millis();
@@ -97,6 +100,7 @@ void monitor_temp_task(void* param) {
     unsigned long start = millis();
     double temp = temperature_sensor.read();
     if (temp >= TEMPERATURE_ALARM_THRESHOLD_UPPER && alarmTaskHandle != NULL && !alarm_active) {
+      alarm_task_called_ticks = xTaskGetTickCount();
       xTaskNotifyGive(alarmTaskHandle);
       Serial.println("\nTask_Temperatura liberou Task_Alarme.");
     }
@@ -118,6 +122,7 @@ void monitor_batt_task(void* param) {
     unsigned long start = millis();
     double batt = battery_level_sensor.read();
     if (batt <= BATTERY_VOLTAGE_ALARM_THRESHOLD_LOWER && alarmTaskHandle != NULL && !alarm_active) {
+      alarm_task_called_ticks = xTaskGetTickCount();
       xTaskNotifyGive(alarmTaskHandle);
       Serial.println("\nTask_Bateria liberou Task_Alarme.");
     }
