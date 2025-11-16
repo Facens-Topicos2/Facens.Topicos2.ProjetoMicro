@@ -4,6 +4,8 @@
 #include <string>
 #include <utility>
 
+extern bool is_debug;
+
 template <typename T>
 class processor {
 private:
@@ -34,18 +36,18 @@ template <typename T>
 class gpio_sampler : public gpio_device, public processor<T> {
 protected:
   int debug_value = 0;
-  bool debug_mode = false;
+  bool* debug_flag = nullptr;
   virtual void gpio_setup(int gpio_num) {
     pinMode(gpio_num, INPUT);
   }
 public:
-  gpio_sampler(int gpio_num) : gpio_device(gpio_num), processor<T>() {
+  gpio_sampler(int gpio_num, bool* debug_flag_ptr = nullptr) : gpio_device(gpio_num), processor<T>(), debug_flag(debug_flag_ptr) {
     gpio_setup(gpio_num);
   }
-  gpio_sampler(int gpio_num, T (*processFunc)(int)) : gpio_device(gpio_num), processor<T>(processFunc) {
+  gpio_sampler(int gpio_num, T (*processFunc)(int), bool* debug_flag_ptr = nullptr) : gpio_device(gpio_num), processor<T>(processFunc), debug_flag(debug_flag_ptr) {
     gpio_setup(gpio_num);
   }
-  gpio_sampler(T (*processFunc)(int)) : gpio_device(-1), processor<T>(processFunc) {}
+  gpio_sampler(T (*processFunc)(int), bool* debug_flag_ptr = nullptr) : gpio_device(-1), processor<T>(processFunc), debug_flag(debug_flag_ptr) {}
   virtual int read_raw() = 0;
   T read() {
     int raw_value = read_raw();
@@ -63,21 +65,23 @@ public:
     debug_value = value;
   }
   void set_debug_mode(bool mode) {
-    debug_mode = mode;
+    if (debug_flag) *debug_flag = mode;
   }
   bool get_debug_mode() const {
-    return debug_mode;
+    if (debug_flag) return *debug_flag;
+    else return is_debug;
   }
+  void set_debug_flag(bool* flag) { debug_flag = flag; }
 };
 
 template <typename T>
 class gpio_analog_sampler : public gpio_sampler<T> {
 public:
-  gpio_analog_sampler(int gpio_num) : gpio_sampler<T>(gpio_num) {}
-  gpio_analog_sampler(int gpio_num, T (*processFunc)(int)) : gpio_sampler<T>(gpio_num, processFunc) {}
-  gpio_analog_sampler(T (*processFunc)(int)) : gpio_sampler<T>(processFunc) {}
+  gpio_analog_sampler(int gpio_num, bool* debug_flag_ptr = nullptr) : gpio_sampler<T>(gpio_num, debug_flag_ptr) {}
+  gpio_analog_sampler(int gpio_num, T (*processFunc)(int), bool* debug_flag_ptr = nullptr) : gpio_sampler<T>(gpio_num, processFunc, debug_flag_ptr) {}
+  gpio_analog_sampler(T (*processFunc)(int), bool* debug_flag_ptr = nullptr) : gpio_sampler<T>(processFunc, debug_flag_ptr) {}
   int read_raw() override {
-    if (this->debug_mode) {
+    if (this->get_debug_mode()) {
       return this->debug_value;
     }
     return analogRead(this->gpio_num);
@@ -87,11 +91,11 @@ public:
 template <typename T>
 class gpio_digital_sampler : public gpio_sampler<T> {
 public:
-  gpio_digital_sampler(int gpio_num) : gpio_sampler<T>(gpio_num) {}
-  gpio_digital_sampler(int gpio_num, T (*processFunc)(int)) : gpio_sampler<T>(gpio_num, processFunc) {}
-  gpio_digital_sampler(T (*processFunc)(int)) : gpio_sampler<T>(processFunc) {}
+  gpio_digital_sampler(int gpio_num, bool* debug_flag_ptr = nullptr) : gpio_sampler<T>(gpio_num, debug_flag_ptr) {}
+  gpio_digital_sampler(int gpio_num, T (*processFunc)(int), bool* debug_flag_ptr = nullptr) : gpio_sampler<T>(gpio_num, processFunc, debug_flag_ptr) {}
+  gpio_digital_sampler(T (*processFunc)(int), bool* debug_flag_ptr = nullptr) : gpio_sampler<T>(processFunc, debug_flag_ptr) {}
   int read_raw() override {
-    if (this->debug_mode) {
+    if (this->get_debug_mode()) {
       return this->debug_value;
     }
     return digitalRead(this->gpio_num);
